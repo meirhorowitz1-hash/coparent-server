@@ -23,7 +23,7 @@ export class CustodyOverridesController {
       endDate: endDate as string | undefined,
     });
 
-    res.json(overrides);
+    return res.json(overrides);
   }
 
   /**
@@ -38,7 +38,7 @@ export class CustodyOverridesController {
       return res.status(404).json({ error: 'custody-override-not-found' });
     }
 
-    res.json(override);
+    return res.json(override);
   }
 
   /**
@@ -59,7 +59,7 @@ export class CustodyOverridesController {
 
     try {
       const override = await custodyOverridesService.create(familyId, userId, validation.data);
-      res.status(201).json(override);
+      return res.status(201).json(override);
     } catch (error: any) {
       if (error.message === 'custody-override-overlap') {
         return res.status(409).json({ error: 'custody-override-overlap' });
@@ -86,7 +86,7 @@ export class CustodyOverridesController {
 
     try {
       const override = await custodyOverridesService.respond(overrideId, userId, validation.data);
-      res.json(override);
+      return res.json(override);
     } catch (error: any) {
       if (error.message === 'custody-override-not-found') {
         return res.status(404).json({ error: 'custody-override-not-found' });
@@ -114,7 +114,7 @@ export class CustodyOverridesController {
 
     try {
       await custodyOverridesService.cancel(overrideId, userId);
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (error: any) {
       if (error.message === 'custody-override-not-found') {
         return res.status(404).json({ error: 'custody-override-not-found' });
@@ -137,7 +137,7 @@ export class CustodyOverridesController {
 
     try {
       await custodyOverridesService.delete(overrideId, familyId);
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (error: any) {
       if (error.message === 'custody-override-not-found') {
         return res.status(404).json({ error: 'custody-override-not-found' });
@@ -153,7 +153,7 @@ export class CustodyOverridesController {
     const { familyId } = req.params;
 
     const result = await custodyOverridesService.deleteAll(familyId);
-    res.json({ success: true, deletedCount: result.count });
+    return res.json({ success: true, deletedCount: result.count });
   }
 }
 

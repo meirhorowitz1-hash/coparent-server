@@ -21,7 +21,7 @@ export class MonthlySummariesController {
       year: year ? parseInt(year as string, 10) : undefined,
     });
 
-    res.json(summaries);
+    return res.json(summaries);
   }
 
   /**
@@ -40,7 +40,7 @@ export class MonthlySummariesController {
       return res.status(404).json({ error: 'summary-not-found' });
     }
 
-    res.json(summary);
+    return res.json(summary);
   }
 
   /**
@@ -55,7 +55,7 @@ export class MonthlySummariesController {
     }
 
     const summary = await monthlySummariesService.upsert(familyId, validation.data);
-    res.json(summary);
+    return res.json(summary);
   }
 
   /**
@@ -71,7 +71,7 @@ export class MonthlySummariesController {
       parseInt(month, 10)
     );
 
-    res.json(summary);
+    return res.json(summary);
   }
 
   /**
@@ -86,7 +86,7 @@ export class MonthlySummariesController {
       parseInt(month, 10)
     );
 
-    res.json({ success: true });
+    return res.json({ success: true });
   }
 }
 
