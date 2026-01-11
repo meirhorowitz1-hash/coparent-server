@@ -53,6 +53,10 @@ export class CalendarController {
   async createEvent(req: FamilyRequest, res: Response) {
     const userId = req.user!.uid;
     const userName = req.body.createdByName || 'הורה';
+    
+    // Debug: log incoming data
+    console.log('[Calendar] Creating event, raw body:', JSON.stringify(req.body, null, 2));
+    
     const data = createEventSchema.parse(req.body);
 
     const event = await calendarService.createEvent(
