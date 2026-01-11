@@ -22,7 +22,7 @@ export const createEventSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   reminderMinutes: z.number().int().min(0).optional().nullable(),
   isAllDay: z.boolean().default(false),
-  childId: z.string().uuid().optional().nullable(),
+  childId: z.string().uuid().optional().nullable().or(z.literal('')).transform(val => val === '' ? null : val),
 });
 
 export const updateEventSchema = z.object({
@@ -36,7 +36,7 @@ export const updateEventSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   reminderMinutes: z.number().int().min(0).optional().nullable(),
   isAllDay: z.boolean().optional(),
-  childId: z.string().uuid().optional().nullable(),
+  childId: z.string().uuid().optional().nullable().or(z.literal('')).transform(val => val === '' ? null : val),
 });
 
 export const custodyScheduleSchema = z.object({
