@@ -8,6 +8,12 @@ if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   
+  // Debug: Log what we have (without exposing full key)
+  console.log('[Firebase Admin] Checking credentials...');
+  console.log('[Firebase Admin] PROJECT_ID:', projectId ? '✅ Set' : '❌ Missing');
+  console.log('[Firebase Admin] CLIENT_EMAIL:', clientEmail ? '✅ Set' : '❌ Missing');
+  console.log('[Firebase Admin] PRIVATE_KEY:', privateKey ? `✅ Set (${privateKey.length} chars)` : '❌ Missing');
+  
   if (!privateKey || !projectId || !clientEmail) {
     console.warn('[Firebase Admin] Missing credentials - Firebase features will be disabled');
     console.warn('[Firebase Admin] Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in .env');
