@@ -1,5 +1,5 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, emitToFamilyExceptUser, SocketEvents } from '../../config/socket.js';
 import { sendPushToFamilyMembers, sendPushToUser, getOtherParentId } from '../../utils/push.js';
 import { formatCurrency } from '../../utils/helpers.js';
 import { 
@@ -66,7 +66,8 @@ export class ExpensesService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'expense:created', expense);
+    emitToFamilyExceptUser(familyId, userId, SocketEvents.EXPENSE_NEW, expense);
+    emitToFamilyExceptUser(familyId, userId, 'expense:created', expense);
 
     // Send push notification
     await sendPushToFamilyMembers(

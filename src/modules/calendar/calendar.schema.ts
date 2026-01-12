@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const eventTypeEnum = z.enum([
   'custody', 'pickup', 'dropoff', 'school', 
-  'activity', 'medical', 'holiday', 'vacation', 'other'
+  'activity', 'medical', 'holiday', 'vacation', 'birthday', 'other'
 ]);
 
 export const parentIdEnum = z.enum(['parent1', 'parent2', 'both']);
@@ -23,10 +23,10 @@ export const createEventSchema = z.object({
   reminderMinutes: z.number().int().min(0).optional().nullable(),
   isAllDay: z.boolean().default(false),
   childId: z.union([
-    z.string().uuid(),
+    z.string().min(1),
     z.literal(''),
     z.null(),
-    z.undefined()
+    z.undefined(),
   ]).optional().transform(val => (!val || val === '') ? null : val),
 });
 
@@ -42,10 +42,10 @@ export const updateEventSchema = z.object({
   reminderMinutes: z.number().int().min(0).optional().nullable(),
   isAllDay: z.boolean().optional(),
   childId: z.union([
-    z.string().uuid(),
+    z.string().min(1),
     z.literal(''),
     z.null(),
-    z.undefined()
+    z.undefined(),
   ]).optional().transform(val => (!val || val === '') ? null : val),
 });
 

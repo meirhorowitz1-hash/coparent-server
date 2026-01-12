@@ -8,6 +8,38 @@ import {
 
 const goalsService = new GoalsService();
 
+function normalizeGoalTablePayload(payload: any) {
+  const rawGoals = payload?.goals ?? payload?.items;
+  const goals = Array.isArray(rawGoals)
+    ? rawGoals.map((goal) => ({
+        ...goal,
+        title: goal?.title ?? goal?.name ?? goal?.label,
+      }))
+    : rawGoals;
+
+  const child = payload?.child;
+
+  return {
+    ...payload,
+    childId: payload?.childId ?? child?.id ?? child?.childId,
+    childName: payload?.childName ?? payload?.name ?? child?.name ?? child?.fullName,
+    title: payload?.title ?? payload?.name ?? payload?.tableTitle,
+    goals,
+  };
+}
+
+function mapGoalTableResponse(goalTable: any) {
+  return {
+    ...goalTable,
+    goals: Array.isArray(goalTable?.goals)
+      ? goalTable.goals.map((goal: any) => ({
+          ...goal,
+          name: goal?.name ?? goal?.title,
+        }))
+      : goalTable?.goals,
+  };
+}
+
 export class GoalsController {
   /**
    * GET /api/families/:familyId/goals
@@ -23,7 +55,7 @@ export class GoalsController {
         active: active === 'true',
       });
 
-      return res.json(goalTables);
+      return res.json(goalTables.map(mapGoalTableResponse));
     } catch (error) {
       console.error('Error getting goal tables:', error);
       return res.status(500).json({ error: 'Failed to get goal tables' });
@@ -44,7 +76,7 @@ export class GoalsController {
         return res.status(404).json({ error: 'Goal table not found' });
       }
 
-      return res.json(goalTable);
+      return res.json(mapGoalTableResponse(goalTable));
     } catch (error) {
       console.error('Error getting goal table:', error);
       return res.status(500).json({ error: 'Failed to get goal table' });
@@ -59,11 +91,13 @@ export class GoalsController {
     try {
       const { familyId } = req.params;
 
-      const validatedData = createGoalTableSchema.parse(req.body);
+      const validatedData = createGoalTableSchema.parse(
+        normalizeGoalTablePayload(req.body)
+      );
 
       const goalTable = await goalsService.create(familyId, validatedData);
 
-      return res.status(201).json(goalTable);
+      return res.status(201).json(mapGoalTableResponse(goalTable));
     } catch (error: any) {
       console.error('Error creating goal table:', error);
       
@@ -83,11 +117,13 @@ export class GoalsController {
     try {
       const { familyId, tableId } = req.params;
 
-      const validatedData = updateGoalTableSchema.parse(req.body);
+      const validatedData = updateGoalTableSchema.parse(
+        normalizeGoalTablePayload(req.body)
+      );
 
       const goalTable = await goalsService.update(tableId, familyId, validatedData);
 
-      return res.json(goalTable);
+      return res.json(mapGoalTableResponse(goalTable));
     } catch (error: any) {
       console.error('Error updating goal table:', error);
       
@@ -146,7 +182,11 @@ export class GoalsController {
     try {
       const { familyId, tableId } = req.params;
 
-      const validatedData = upsertDailyProgressSchema.parse(req.body);
+      const normalizedBody = {
+        ...req.body,
+        date: req.body?.date ? new Date(req.body.date).toISOString() : req.body?.date,
+      };
+      const validatedData = upsertDailyProgressSchema.parse(normalizedBody);
 
       const progress = await goalsService.upsertProgress(tableId, familyId, validatedData);
 

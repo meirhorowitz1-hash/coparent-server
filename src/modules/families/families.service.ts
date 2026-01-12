@@ -1,11 +1,19 @@
 import prisma from '../../config/database.js';
 import { generateShareCode, normalizeEmail } from '../../utils/helpers.js';
+import { emitToFamily } from '../../config/socket.js';
 import { 
   CreateFamilyInput, 
   UpdateFamilyInput, 
   AddChildInput,
   UpdateChildInput 
 } from './families.schema.js';
+
+interface ChildUpdateInput {
+  id?: string;
+  name: string;
+  birthDate?: string | null;
+  photoUrl?: string | null;
+}
 
 export class FamiliesService {
   /**
@@ -94,13 +102,223 @@ export class FamiliesService {
    * Update family
    */
   async updateFamily(familyId: string, data: UpdateFamilyInput) {
-    return prisma.family.update({
+    const updateData: any = {};
+    
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+    }
+    if (data.photoUrl !== undefined) {
+      updateData.photoUrl = data.photoUrl;
+    }
+
+    const family = await prisma.family.update({
       where: { id: familyId },
-      data: {
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.photoUrl !== undefined && { photoUrl: data.photoUrl }),
+      data: updateData,
+      include: {
+        children: true,
       },
     });
+
+    // Handle children updates if provided
+    if (data.children !== undefined) {
+      const updatedChildren = await this.syncChildren(familyId, data.children as ChildUpdateInput[]);
+      return {
+        ...family,
+        children: updatedChildren,
+      };
+    }
+
+    return family;
+  }
+
+  /**
+   * Sync children for a family - creates, updates, and removes children as needed
+   * Also creates birthday events for children with birth dates
+   */
+  async syncChildren(familyId: string, children: ChildUpdateInput[]) {
+    // Get existing children
+    const existingChildren = await prisma.familyChild.findMany({
+      where: { familyId },
+    });
+
+    const existingMap = new Map(existingChildren.map(c => [c.id, c]));
+    const providedIds = new Set(children.filter(c => c.id).map(c => c.id!));
+
+    // Find children to delete (exist in DB but not in provided list)
+    const toDelete = existingChildren.filter(c => !providedIds.has(c.id));
+    
+    // Process each provided child
+    const results = [];
+    for (const child of children) {
+      const birthDate = child.birthDate ? new Date(child.birthDate) : null;
+      
+      if (child.id && existingMap.has(child.id)) {
+        // Update existing child
+        const existing = existingMap.get(child.id)!;
+        const birthdateChanged = this.hasBirthdateChanged(existing.birthDate, birthDate);
+        
+        const updated = await prisma.familyChild.update({
+          where: { id: child.id },
+          data: {
+            name: child.name,
+            birthDate,
+            photoUrl: child.photoUrl ?? null,
+          },
+        });
+        
+        // If birthdate changed, update the birthday event
+        if (birthdateChanged) {
+          await this.upsertBirthdayEvent(familyId, updated);
+        }
+        
+        results.push(updated);
+      } else {
+        // Create new child
+        const created = await prisma.familyChild.create({
+          data: {
+            familyId,
+            name: child.name,
+            birthDate,
+            photoUrl: child.photoUrl ?? null,
+          },
+        });
+        
+        // Create birthday event if birthdate is provided
+        if (birthDate) {
+          await this.upsertBirthdayEvent(familyId, created);
+        }
+        
+        results.push(created);
+      }
+    }
+
+    // Delete removed children and their birthday events
+    for (const child of toDelete) {
+      await this.deleteBirthdayEvent(familyId, child.id);
+      await prisma.familyChild.delete({
+        where: { id: child.id },
+      });
+    }
+
+    // Emit socket event with updated family data
+    emitToFamily(familyId, 'family:updated', { children: results });
+
+    return results;
+  }
+
+  /**
+   * Check if birthdate has changed
+   */
+  private hasBirthdateChanged(oldDate: Date | null, newDate: Date | null): boolean {
+    if (!oldDate && !newDate) return false;
+    if (!oldDate || !newDate) return true;
+    return oldDate.toISOString().split('T')[0] !== newDate.toISOString().split('T')[0];
+  }
+
+  /**
+   * Create or update birthday event for a child
+   * Creates a yearly recurring event that repeats on the child's birthday each year
+   */
+  private async upsertBirthdayEvent(
+    familyId: string,
+    child: { id: string; name: string; birthDate: Date | null }
+  ) {
+    if (!child.birthDate) {
+      await this.deleteBirthdayEvent(familyId, child.id);
+      return;
+    }
+
+    const birthDate = new Date(child.birthDate);
+    
+    // Use the original birth date as the event start date
+    // The recurring pattern will handle showing it every year
+    const startDate = new Date(birthDate);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(birthDate);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Use child's actual name for the title
+    const title = `🎂 יום הולדת ${child.name}`;
+    const description = `יום הולדת של ${child.name}`;
+    
+    // Yearly recurring pattern
+    const recurring = {
+      frequency: 'yearly' as const,
+    };
+
+    // Find existing birthday event for this child
+    const existing = await prisma.calendarEvent.findFirst({
+      where: {
+        familyId,
+        childId: child.id,
+        type: 'birthday',
+      },
+    });
+
+    if (existing) {
+      // Update existing event
+      const updated = await prisma.calendarEvent.update({
+        where: { id: existing.id },
+        data: {
+          title,
+          description,
+          startDate,
+          endDate,
+          recurring,
+        },
+      });
+      
+      // Emit socket event for update
+      emitToFamily(familyId, 'calendar:event:updated', updated);
+      console.log(`[Family] Updated birthday event for ${child.name} (${child.id})`);
+    } else {
+      // Create new birthday event with yearly recurrence
+      const created = await prisma.calendarEvent.create({
+        data: {
+          familyId,
+          title,
+          description,
+          startDate,
+          endDate,
+          type: 'birthday',
+          parentId: 'both',
+          isAllDay: true,
+          recurring,
+          childId: child.id,
+          color: '#FF6B9D',
+          targetUids: [],
+        },
+      });
+      
+      // Emit socket event for new event
+      emitToFamily(familyId, 'calendar:event:new', created);
+      console.log(`[Family] Created birthday event for ${child.name} (${child.id}) on ${birthDate.getMonth() + 1}/${birthDate.getDate()}`);
+    }
+  }
+
+  /**
+   * Delete birthday event for a child
+   */
+  private async deleteBirthdayEvent(familyId: string, childId: string) {
+    // Find the event first to get its ID for the socket event
+    const event = await prisma.calendarEvent.findFirst({
+      where: {
+        familyId,
+        childId,
+        type: 'birthday',
+      },
+    });
+    
+    if (event) {
+      await prisma.calendarEvent.delete({
+        where: { id: event.id },
+      });
+      
+      // Emit socket event for deletion
+      emitToFamily(familyId, 'calendar:event:deleted', { id: event.id });
+      console.log(`[Family] Deleted birthday event for child ${childId}`);
+    }
   }
 
   /**
@@ -373,6 +591,7 @@ export class FamiliesService {
         name: data.name,
         birthDate: data.birthDate ? new Date(data.birthDate) : null,
         photoUrl: data.photoUrl,
+        externalId: data.externalId ?? null,
       },
     });
   }
@@ -389,6 +608,7 @@ export class FamiliesService {
           birthDate: data.birthDate ? new Date(data.birthDate) : null 
         }),
         ...(data.photoUrl !== undefined && { photoUrl: data.photoUrl }),
+        ...(data.externalId !== undefined && { externalId: data.externalId }),
       },
     });
   }

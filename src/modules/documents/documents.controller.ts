@@ -57,6 +57,14 @@ export class DocumentsController {
       });
     }
 
+    const maxSizeMb = Number(process.env.DOCUMENTS_MAX_MB ?? '10');
+    if (Number.isFinite(maxSizeMb) && file.size > maxSizeMb * 1024 * 1024) {
+      return res.status(413).json({
+        error: 'file-too-large',
+        message: `File exceeds ${maxSizeMb}MB limit`,
+      });
+    }
+
     const document = await documentsService.upload(
       req.familyId!,
       userId,

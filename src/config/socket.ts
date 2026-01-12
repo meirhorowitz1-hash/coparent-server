@@ -154,6 +154,37 @@ export function emitToFamily(familyId: string, event: string, data: unknown): vo
 }
 
 /**
+ * Emit event to a specific family room, excluding a user
+ */
+export function emitToFamilyExceptUser(
+  familyId: string,
+  excludeUserId: string,
+  event: string,
+  data: unknown
+): void {
+  if (!io) {
+    console.warn('[Socket] Cannot emit - not initialized');
+    return;
+  }
+
+  const room = `family:${familyId}`;
+  let emittedCount = 0;
+
+  io.sockets.sockets.forEach((socket) => {
+    const authSocket = socket as AuthenticatedSocket;
+    if (authSocket.userId === excludeUserId) {
+      return;
+    }
+    if (socket.rooms.has(room)) {
+      socket.emit(event, data);
+      emittedCount += 1;
+    }
+  });
+
+  console.log(`[Socket] Emitting ${event} to ${room} excluding ${excludeUserId} (${emittedCount} clients)`);
+}
+
+/**
  * Emit event to a specific user (all their connections)
  */
 export function emitToUser(userId: string, event: string, data: unknown): void {
@@ -172,4 +203,4 @@ export function emitToUser(userId: string, event: string, data: unknown): void {
   });
 }
 
-export default { initializeSocket, getIO, emitToFamily, emitToUser, SocketEvents };
+export default { initializeSocket, getIO, emitToFamily, emitToFamilyExceptUser, emitToUser, SocketEvents };

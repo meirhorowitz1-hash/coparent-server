@@ -12,7 +12,7 @@ export const createCustodyOverrideSchema = z.object({
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   assignments: z.record(z.string(), z.enum(['parent1', 'parent2'])), // { "2024-01-15": "parent1" }
-  note: z.string().optional(),
+  note: z.string().optional().nullable(),
   requestApproval: z.boolean().optional().default(true),
   requestedByName: z.string().optional(),
 });
@@ -21,7 +21,7 @@ export type CreateCustodyOverrideInput = z.infer<typeof createCustodyOverrideSch
 
 export const respondCustodyOverrideSchema = z.object({
   approve: z.boolean(),
-  responseNote: z.string().optional(),
+  responseNote: z.string().optional().nullable(),
 });
 
 export type RespondCustodyOverrideInput = z.infer<typeof respondCustodyOverrideSchema>;

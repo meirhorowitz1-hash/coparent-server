@@ -5,6 +5,7 @@ import {
   generateFileKey as s3GenerateKey,
   UploadResult 
 } from '../config/s3.js';
+import { firebaseAdmin, isFirebaseInitialized } from '../config/firebase.js';
 
 interface StorageProvider {
   upload(buffer: Buffer, key: string, contentType: string, metadata?: Record<string, string>): Promise<UploadResult>;
@@ -43,43 +44,52 @@ class S3StorageProvider implements StorageProvider {
  * Firebase Storage Provider
  */
 class FirebaseStorageProvider implements StorageProvider {
+  private getBucket() {
+    if (!isFirebaseInitialized()) {
+      throw new Error('firebase-not-initialized');
+    }
+
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+    return bucketName
+      ? firebaseAdmin.storage().bucket(bucketName)
+      : firebaseAdmin.storage().bucket();
+  }
+
   async upload(
     buffer: Buffer, 
     key: string, 
     contentType: string,
     metadata?: Record<string, string>
   ): Promise<UploadResult> {
-    // TODO: Implement Firebase Storage upload
-    // Example:
-    // const bucket = admin.storage().bucket();
-    // const file = bucket.file(key);
-    // await file.save(buffer, { contentType, metadata });
-    // const [url] = await file.getSignedUrl({ action: 'read', expires: '03-01-2500' });
-    // return { url, key };
-    
-    console.log('[FirebaseStorage] Upload not fully implemented yet');
-    return { url: `firebase://${key}`, key };
+    const bucket = this.getBucket();
+    const file = bucket.file(key);
+
+    await file.save(buffer, {
+      contentType,
+      metadata,
+    });
+
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: '03-01-2500',
+    });
+
+    return { url, key };
   }
 
   async delete(key: string): Promise<void> {
-    // TODO: Implement Firebase Storage delete
-    // const bucket = admin.storage().bucket();
-    // await bucket.file(key).delete();
-    
-    console.log('[FirebaseStorage] Delete not fully implemented yet');
+    const bucket = this.getBucket();
+    await bucket.file(key).delete();
   }
 
   async getUrl(key: string, expiresIn = 3600): Promise<string> {
-    // TODO: Implement Firebase Storage signed URL
-    // const bucket = admin.storage().bucket();
-    // const [url] = await bucket.file(key).getSignedUrl({
-    //   action: 'read',
-    //   expires: Date.now() + expiresIn * 1000,
-    // });
-    // return url;
-    
-    console.log('[FirebaseStorage] GetUrl not fully implemented yet');
-    return `firebase://${key}`;
+    const bucket = this.getBucket();
+    const file = bucket.file(key);
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + expiresIn * 1000,
+    });
+    return url;
   }
 
   generateKey(folder: string, fileName: string): string {
@@ -239,6 +249,38 @@ export class StorageService {
    */
   validateFileType(contentType: string, allowedTypes: string[]): boolean {
     return allowedTypes.includes(contentType);
+  }
+}
+
+export function extractStorageKeyFromUrl(url: string): string | null {
+  try {
+    if (url.startsWith('gs://')) {
+      const withoutScheme = url.slice('gs://'.length);
+      const slashIndex = withoutScheme.indexOf('/');
+      return slashIndex >= 0 ? withoutScheme.slice(slashIndex + 1) : null;
+    }
+
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+
+    if (urlObj.hostname === 'firebasestorage.googleapis.com') {
+      const objectIndex = pathParts.indexOf('o');
+      if (objectIndex !== -1 && pathParts[objectIndex + 1]) {
+        return decodeURIComponent(pathParts[objectIndex + 1]);
+      }
+      return null;
+    }
+
+    if (urlObj.hostname === 'storage.googleapis.com') {
+      if (pathParts.length >= 2) {
+        return pathParts.slice(1).join('/');
+      }
+      return null;
+    }
+
+    return urlObj.pathname.slice(1);
+  } catch {
+    return null;
   }
 }
 

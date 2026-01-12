@@ -1,5 +1,5 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, emitToFamilyExceptUser, SocketEvents } from '../../config/socket.js';
 import { sendPushToUser } from '../../utils/push.js';
 import { formatDateHebrew } from '../../utils/helpers.js';
 import { CreateSwapRequestInput } from './swap-requests.schema.js';
@@ -57,7 +57,8 @@ export class SwapRequestsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'swap:created', swapRequest);
+    emitToFamilyExceptUser(familyId, userId, SocketEvents.SWAP_REQUEST_NEW, swapRequest);
+    emitToFamilyExceptUser(familyId, userId, 'swap:created', swapRequest);
 
     // Send push notification to the other parent
     await sendPushToUser(
@@ -125,6 +126,7 @@ export class SwapRequestsService {
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.SWAP_REQUEST_UPDATED, swapRequest);
     emitToFamily(familyId, 'swap:updated', swapRequest);
 
     // Send push notification
@@ -200,6 +202,7 @@ export class SwapRequestsService {
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.SWAP_REQUEST_UPDATED, swapRequest);
     emitToFamily(familyId, 'swap:updated', swapRequest);
 
     // Send push notification
@@ -251,6 +254,7 @@ export class SwapRequestsService {
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.SWAP_REQUEST_UPDATED, swapRequest);
     emitToFamily(familyId, 'swap:updated', swapRequest);
 
     // Send push notification to the other parent to finalize
@@ -311,6 +315,7 @@ export class SwapRequestsService {
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.SWAP_REQUEST_UPDATED, swapRequest);
     emitToFamily(familyId, 'swap:updated', swapRequest);
 
     // Send push notification
@@ -343,13 +348,28 @@ export class SwapRequestsService {
     requestType: string;
     reason: string | null;
   }) {
-    // Delete any existing swap events for these dates
-    await prisma.calendarEvent.deleteMany({
+    // Delete any existing swap events for this request
+    const existingEvents = await prisma.calendarEvent.findMany({
       where: {
         familyId: swapRequest.familyId,
         swapRequestId: swapRequest.id,
       },
+      select: { id: true },
     });
+
+    if (existingEvents.length) {
+      await prisma.calendarEvent.deleteMany({
+        where: {
+          familyId: swapRequest.familyId,
+          swapRequestId: swapRequest.id,
+        },
+      });
+
+      for (const event of existingEvents) {
+        emitToFamily(swapRequest.familyId, SocketEvents.CALENDAR_EVENT_DELETED, { id: event.id });
+        emitToFamily(swapRequest.familyId, 'event:deleted', { id: event.id });
+      }
+    }
 
     // Get parent roles
     const members = await prisma.familyMember.findMany({
@@ -362,7 +382,19 @@ export class SwapRequestsService {
     const originalParent = requesterIsParent1 ? 'parent1' : 'parent2';
     const targetParent = requesterIsParent1 ? 'parent2' : 'parent1';
 
-    const eventsToCreate = [];
+    const eventsToCreate: Array<{
+      familyId: string;
+      title: string;
+      description: string;
+      startDate: Date;
+      endDate: Date;
+      type: string;
+      parentId: string;
+      isAllDay: boolean;
+      color: string;
+      swapRequestId: string;
+      targetUids: string[];
+    }> = [];
 
     // Original date goes to the other parent
     eventsToCreate.push({
@@ -398,10 +430,14 @@ export class SwapRequestsService {
       });
     }
 
-    // Create the events
-    await prisma.calendarEvent.createMany({
-      data: eventsToCreate,
-    });
+    // Create the events and emit socket updates
+    for (const eventData of eventsToCreate) {
+      const created = await prisma.calendarEvent.create({
+        data: eventData,
+      });
+      emitToFamily(swapRequest.familyId, SocketEvents.CALENDAR_EVENT_NEW, created);
+      emitToFamily(swapRequest.familyId, 'event:created', created);
+    }
   }
 
   /**

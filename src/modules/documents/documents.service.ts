@@ -1,8 +1,19 @@
 import prisma from '../../config/database.js';
 import { emitToFamily } from '../../config/socket.js';
-import { uploadFile, deleteFile, generateFileKey } from '../../config/s3.js';
+import { storageService, storageServiceFirebase, extractStorageKeyFromUrl } from '../../services/storage.service.js';
 
 export class DocumentsService {
+  private storageMode = (process.env.DOCUMENTS_STORAGE || '').toLowerCase();
+  private storage = this.storageMode === 'firebase' || (
+    this.storageMode !== 'db' && process.env.USE_FIREBASE_STORAGE === 'true'
+  )
+    ? storageServiceFirebase
+    : storageService;
+
+  private shouldStoreInDb(): boolean {
+    return this.storageMode === 'db';
+  }
+
   /**
    * Get all documents for a family
    */
@@ -41,9 +52,14 @@ export class DocumentsService {
     },
     childId?: string | null
   ) {
-    // Upload to S3
-    const key = generateFileKey(`families/${familyId}/documents`, file.originalname);
-    const { url } = await uploadFile(file.buffer, key, file.mimetype);
+    const fileUrl = this.shouldStoreInDb()
+      ? `data:${file.mimetype};base64,${file.buffer.toString('base64')}`
+      : (await this.storage.uploadFile(
+          file.buffer,
+          `families/${familyId}/documents`,
+          file.originalname,
+          file.mimetype
+        )).url;
 
     // Save to database
     const document = await prisma.document.create({
@@ -51,7 +67,7 @@ export class DocumentsService {
         familyId,
         title,
         fileName: file.originalname,
-        fileUrl: url,
+        fileUrl,
         fileSize: file.size,
         mimeType: file.mimetype,
         childId: childId || null,
@@ -79,15 +95,15 @@ export class DocumentsService {
     }
 
     // Delete from S3
-    if (document.fileUrl) {
+    if (document.fileUrl && !this.shouldStoreInDb()) {
       try {
-        const key = this.extractKeyFromUrl(document.fileUrl);
+        const key = extractStorageKeyFromUrl(document.fileUrl);
         if (key) {
-          await deleteFile(key);
+          await this.storage.deleteFile(key);
         }
       } catch (error) {
-        console.error('[Documents] Failed to delete file from S3:', error);
-        // Continue with database deletion even if S3 fails
+        console.error('[Documents] Failed to delete file from storage provider:', error);
+        // Continue with database deletion even if storage deletion fails
       }
     }
 
@@ -98,19 +114,6 @@ export class DocumentsService {
 
     // Emit socket event
     emitToFamily(familyId, 'document:deleted', { id: documentId });
-  }
-
-  /**
-   * Extract S3 key from URL
-   */
-  private extractKeyFromUrl(url: string): string | null {
-    try {
-      const urlObj = new URL(url);
-      // Remove leading slash
-      return urlObj.pathname.slice(1);
-    } catch {
-      return null;
-    }
   }
 }
 

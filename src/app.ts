@@ -21,6 +21,7 @@ import documentsRoutes from './modules/documents/documents.routes.js';
 import swapRequestsRoutes from './modules/swap-requests/swap-requests.routes.js';
 import notificationsRoutes from './modules/notifications/notifications.routes.js';
 import settingsRoutes from './modules/settings/settings.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
 
 // Import jobs
 import './jobs/reminder.job.js';
@@ -106,6 +107,9 @@ app.use('/api/notifications', notificationsRoutes); // Auth handled inside route
 app.use('/api/settings', settingsRoutes); // Auth handled inside routes
 // Chat routes are now nested under /api/families/:familyId/chat
 
+// Admin routes (authentication handled in routes)
+app.use('/api/admin', adminRoutes);
+
 // Error handling
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
@@ -136,6 +140,7 @@ httpServer.listen(PORT, () => {
    - Payment Receipts:   /api/families/:familyId/payment-receipts
    - Monthly Summaries:  /api/families/:familyId/monthly-summaries
    - Custody Overrides:  /api/calendar/:familyId/custody-overrides
+   - Admin:              /api/admin
   `);
 });
 

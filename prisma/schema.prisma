@@ -1,46 +1,40 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-// ==================== USERS ====================
-
 model User {
-  id              String    @id // Firebase UID
-  email           String    @unique
-  fullName        String?
-  phone           String?
-  photoUrl        String?
-  calendarColor   String?
-  activeFamilyId  String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // Relations
-  ownedFamilies     Family[]        @relation("FamilyOwner")
-  familyMemberships FamilyMember[]
-  pushTokens        PushToken[]
-  createdExpenses   Expense[]       @relation("ExpenseCreator")
-  updatedExpenses   Expense[]       @relation("ExpenseUpdater")
-  createdTasks      Task[]          @relation("TaskCreator")
-  completedTasks    Task[]          @relation("TaskCompleter")
-  createdEvents     CalendarEvent[] @relation("EventCreator")
-  uploadedDocuments Document[]      @relation("DocumentUploader")
-  sentSwapRequests  SwapRequest[]   @relation("SwapRequester")
-  receivedSwapRequests SwapRequest[] @relation("SwapResponder")
-  chatMessages      ChatMessage[]
-  paymentReceipts   PaymentReceipt[] @relation("PaymentReceiptUploader")
-  notifications        Notification[]
+  id                      String                   @id
+  email                   String                   @unique
+  fullName                String?
+  phone                   String?
+  photoUrl                String?
+  calendarColor           String?
+  activeFamilyId          String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  createdEvents           CalendarEvent[]          @relation("EventCreator")
+  chatMessages            ChatMessage[]
+  uploadedDocuments       Document[]               @relation("DocumentUploader")
+  createdExpenses         Expense[]                @relation("ExpenseCreator")
+  updatedExpenses         Expense[]                @relation("ExpenseUpdater")
+  ownedFamilies           Family[]                 @relation("FamilyOwner")
+  familyMemberships       FamilyMember[]
+  notifications           Notification[]
   notificationPreferences NotificationPreferences?
-  userSettings         UserSettings?
-  privacySettings      PrivacySettings?
+  paymentReceipts         PaymentReceipt[]         @relation("PaymentReceiptUploader")
+  privacySettings         PrivacySettings?
+  pushTokens              PushToken[]
+  sentSwapRequests        SwapRequest[]            @relation("SwapRequester")
+  receivedSwapRequests    SwapRequest[]            @relation("SwapResponder")
+  completedTasks          Task[]                   @relation("TaskCompleter")
+  createdTasks            Task[]                   @relation("TaskCreator")
+  userSettings            UserSettings?
 
   @@index([email])
   @@index([activeFamilyId])
@@ -49,61 +43,56 @@ model User {
 model PushToken {
   id        String   @id @default(uuid())
   token     String   @unique
-  platform  String?  // web, ios, android
+  platform  String?
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-// ==================== FAMILIES ====================
-
 model Family {
-  id                 String    @id @default(uuid())
+  id                 String                  @id @default(uuid())
   name               String?
   photoUrl           String?
-  shareCode          String?   @unique
+  shareCode          String?                 @unique
   shareCodeUpdatedAt DateTime?
   ownerId            String
-  owner              User      @relation("FamilyOwner", fields: [ownerId], references: [id])
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  // Relations
-  members          FamilyMember[]
-  children         FamilyChild[]
-  invites          FamilyInvite[]
-  expenses         Expense[]
-  tasks            Task[]
-  calendarEvents   CalendarEvent[]
-  documents        Document[]
-  swapRequests     SwapRequest[]
-  chatMessages      ChatMessage[]
-  paymentReceipts   PaymentReceipt[]
-  custodySchedule   CustodySchedule?
-  custodyOverrides  CustodyOverride[]
-  financeSettings   FinanceSettings?
-  eventReminders    EventReminder[]
-  goalTables       GoalTable[]
-  notifications    Notification[]
-  familySettings   FamilySettings?
-  monthlySummaries  MonthlyExpenseSummary[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  calendarEvents     CalendarEvent[]
+  chatMessages       ChatMessage[]
+  custodyOverrides   CustodyOverride[]
+  custodySchedule    CustodySchedule?
+  documents          Document[]
+  eventReminders     EventReminder[]
+  expenses           Expense[]
+  owner              User                    @relation("FamilyOwner", fields: [ownerId], references: [id])
+  children           FamilyChild[]
+  invites            FamilyInvite[]
+  members            FamilyMember[]
+  familySettings     FamilySettings?
+  financeSettings    FinanceSettings?
+  goalTables         GoalTable[]
+  monthlySummaries   MonthlyExpenseSummary[]
+  notifications      Notification[]
+  paymentReceipts    PaymentReceipt[]
+  swapRequests       SwapRequest[]
+  tasks              Task[]
 
   @@index([ownerId])
   @@index([shareCode])
 }
 
 model FamilyMember {
-  id        String   @id @default(uuid())
-  familyId  String
-  userId    String
-  role      String   @default("member") // owner, member
-  joinedAt  DateTime @default(now())
-
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String   @id @default(uuid())
+  familyId String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  family   Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([familyId, userId])
   @@index([familyId])
@@ -111,38 +100,36 @@ model FamilyMember {
 }
 
 model FamilyChild {
-  id        String   @id @default(uuid())
-  familyId  String
-  name      String
-  birthDate DateTime?
-  photoUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(uuid())
+  familyId   String
+  name       String
+  birthDate  DateTime?
+  photoUrl   String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  externalId String?
+  family     Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
+  @@unique([familyId, externalId])
   @@index([familyId])
 }
 
 model FamilyInvite {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   familyId      String
   email         String
-  displayEmail  String   // Original casing
+  displayEmail  String
   invitedById   String
   invitedByName String?
-  status        String   @default("pending") // pending, accepted, expired
-  createdAt     DateTime @default(now())
+  status        String    @default("pending")
+  createdAt     DateTime  @default(now())
   expiresAt     DateTime?
-
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family        Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@unique([familyId, email])
   @@index([email])
   @@index([familyId])
 }
-
-// ==================== NOTIFICATIONS ====================
 
 model Notification {
   id        String   @id @default(uuid())
@@ -156,9 +143,8 @@ model Notification {
   actionUrl String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  family Family? @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family    Family?  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([familyId])
@@ -167,26 +153,23 @@ model Notification {
 }
 
 model NotificationPreferences {
-  id                     String   @id @default(uuid())
-  userId                 String   @unique
-  expenseNotifications   Boolean  @default(true)
-  swapRequestNotifications Boolean @default(true)
-  taskNotifications      Boolean  @default(true)
-  calendarNotifications  Boolean  @default(true)
-  chatNotifications      Boolean  @default(true)
-  emailNotifications     Boolean  @default(true)
-  pushNotifications      Boolean  @default(true)
-  quietHoursEnabled      Boolean  @default(false)
-  quietHoursStart        String?
-  quietHoursEnd          String?
-  updatedAt              DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                       String   @id @default(uuid())
+  userId                   String   @unique
+  expenseNotifications     Boolean  @default(true)
+  swapRequestNotifications Boolean  @default(true)
+  taskNotifications        Boolean  @default(true)
+  calendarNotifications    Boolean  @default(true)
+  chatNotifications        Boolean  @default(true)
+  emailNotifications       Boolean  @default(true)
+  pushNotifications        Boolean  @default(true)
+  quietHoursEnabled        Boolean  @default(false)
+  quietHoursStart          String?
+  quietHoursEnd            String?
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
-
-// ==================== SETTINGS ====================
 
 model UserSettings {
   id         String   @id @default(uuid())
@@ -198,8 +181,7 @@ model UserSettings {
   weekStart  String   @default("sunday")
   theme      String   @default("auto")
   updatedAt  DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -219,52 +201,47 @@ model FamilySettings {
   enableCalendarReminders    Boolean  @default(true)
   calendarReminderMinutes    Int      @default(30)
   updatedAt                  DateTime @updatedAt
-
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family                     Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
 }
 
 model PrivacySettings {
-  id                      String   @id @default(uuid())
-  userId                  String   @unique
-  profileVisibility       String   @default("family")
-  shareCalendarWithCoParent Boolean @default(true)
-  shareExpensesWithCoParent Boolean @default(true)
-  shareDocumentsWithCoParent Boolean @default(true)
-  allowCoParentMessaging  Boolean  @default(true)
-  blockedUserIds          String[] @default([])
-  updatedAt               DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                         String   @id @default(uuid())
+  userId                     String   @unique
+  profileVisibility          String   @default("family")
+  shareCalendarWithCoParent  Boolean  @default(true)
+  shareExpensesWithCoParent  Boolean  @default(true)
+  shareDocumentsWithCoParent Boolean  @default(true)
+  allowCoParentMessaging     Boolean  @default(true)
+  blockedUserIds             String[] @default([])
+  updatedAt                  DateTime @updatedAt
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-// ==================== CUSTODY ====================
-
 model CustodySchedule {
-  id                     String    @id @default(uuid())
-  familyId               String    @unique
+  id                     String                  @id @default(uuid())
+  familyId               String                  @unique
   name                   String?
-  pattern                String    // weekly, biweekly, custom, week_on_week_off
+  pattern                String
   startDate              DateTime
   endDate                DateTime?
-  parent1Days            Int[]     // 0-6 (Sun-Sat)
+  parent1Days            Int[]
   parent2Days            Int[]
-  biweeklyAltParent1Days Int[]     @default([])
-  biweeklyAltParent2Days Int[]     @default([])
-  isActive               Boolean   @default(true)
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  family          Family                   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  pendingApproval CustodyApprovalRequest?
+  biweeklyAltParent1Days Int[]                   @default([])
+  biweeklyAltParent2Days Int[]                   @default([])
+  isActive               Boolean                 @default(true)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  pendingApproval        CustodyApprovalRequest?
+  family                 Family                  @relation(fields: [familyId], references: [id], onDelete: Cascade)
 }
 
 model CustodyApprovalRequest {
-  id              String   @id @default(uuid())
-  scheduleId      String   @unique
+  id              String          @id @default(uuid())
+  scheduleId      String          @unique
   name            String?
   pattern         String
   startDate       DateTime
@@ -272,21 +249,20 @@ model CustodyApprovalRequest {
   parent2Days     Int[]
   requestedById   String?
   requestedByName String?
-  requestedAt     DateTime @default(now())
-
-  schedule CustodySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  requestedAt     DateTime        @default(now())
+  schedule        CustodySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
 }
 
 model CustodyOverride {
   id              String    @id @default(uuid())
   familyId        String
   name            String?
-  type            String    // vacation, holiday, special, swap
+  type            String
   startDate       DateTime
   endDate         DateTime
-  assignments     Json      // { "2024-01-15": "parent1", "2024-01-16": "parent2" }
+  assignments     Json
   note            String?
-  status          String    @default("pending") // pending, approved, rejected, cancelled
+  status          String    @default("pending")
   requestedById   String
   requestedByName String?
   requestedToId   String?
@@ -296,40 +272,37 @@ model CustodyOverride {
   respondedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family          Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
   @@index([familyId, status])
   @@index([familyId, startDate, endDate])
 }
 
-// ==================== CALENDAR ====================
-
 model CalendarEvent {
-  id              String    @id @default(uuid())
+  id              String         @id @default(uuid())
   familyId        String
   title           String
   description     String?
   startDate       DateTime
   endDate         DateTime
-  type            String    // custody, pickup, dropoff, school, activity, medical, holiday, vacation, other
-  parentId        String    // parent1, parent2, both
-  targetUids      String[]  @default([])
+  type            String         // custody, pickup, dropoff, school, activity, medical, holiday, vacation, birthday, other
+  parentId        String
+  targetUids      String[]       @default([])
   color           String?
   location        String?
   reminderMinutes Int?
-  isAllDay        Boolean   @default(false)
+  isAllDay        Boolean        @default(false)
   childId         String?
   swapRequestId   String?
+  recurring       Json?          // { frequency: 'yearly' | 'monthly' | 'weekly', endDate?: DateTime, daysOfWeek?: number[] }
   createdById     String?
   createdByName   String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  family    Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  createdBy User?           @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  reminder  EventReminder?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdBy       User?          @relation("EventCreator", fields: [createdById], references: [id])
+  family          Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  reminder        EventReminder?
 
   @@index([familyId])
   @@index([familyId, startDate])
@@ -337,49 +310,45 @@ model CalendarEvent {
 }
 
 model EventReminder {
-  id        String    @id @default(uuid())
-  eventId   String    @unique
-  familyId  String
-  title     String
-  startDate DateTime
-  sendAt    DateTime
-  sent      Boolean   @default(false)
-  sentAt    DateTime?
-  targetUids String[] @default([])
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  event  CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  family Family        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  id         String        @id @default(uuid())
+  eventId    String        @unique
+  familyId   String
+  title      String
+  startDate  DateTime
+  sendAt     DateTime
+  sent       Boolean       @default(false)
+  sentAt     DateTime?
+  targetUids String[]      @default([])
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  event      CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  family     Family        @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@index([sent, sendAt])
   @@index([familyId])
 }
 
-// ==================== EXPENSES ====================
-
 model Expense {
-  id             String    @id @default(uuid())
-  familyId       String
-  title          String
-  amount         Float
-  date           DateTime
-  notes          String?
-  receiptUrl     String?
-  receiptName    String?
-  splitParent1   Int       @default(50) // percentage 0-100
-  status         String    @default("pending") // pending, approved, rejected
-  isPaid         Boolean   @default(false)
-  createdById    String
-  createdByName  String?
-  updatedById    String?
-  updatedByName  String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  family    Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  createdBy User   @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  updatedBy User?  @relation("ExpenseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  id            String   @id @default(uuid())
+  familyId      String
+  title         String
+  amount        Float
+  date          DateTime
+  notes         String?
+  receiptUrl    String?
+  receiptName   String?
+  splitParent1  Int      @default(50)
+  status        String   @default("pending")
+  isPaid        Boolean  @default(false)
+  createdById   String
+  createdByName String?
+  updatedById   String?
+  updatedByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     User     @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  updatedBy     User?    @relation("ExpenseUpdater", fields: [updatedById], references: [id])
 
   @@index([familyId])
   @@index([familyId, date])
@@ -387,36 +356,32 @@ model Expense {
 }
 
 model FinanceSettings {
-  id                     String   @id @default(uuid())
-  familyId               String   @unique
-  alimonyAmount          Float    @default(0)
-  alimonyPayer           String?  // parent1, parent2, null
-  defaultSplitParent1    Int      @default(50)
+  id                     String         @id @default(uuid())
+  familyId               String         @unique
+  alimonyAmount          Float          @default(0)
+  alimonyPayer           String?
+  defaultSplitParent1    Int            @default(50)
+  updatedAt              DateTime       @updatedAt
+  autoCalculateSplit     Boolean        @default(true)
   defaultExpenseCategory String?
-  enableReceiptScanning  Boolean  @default(true)
-  autoCalculateSplit     Boolean  @default(true)
-  trackPaymentStatus     Boolean  @default(true)
-  sendPaymentReminders   Boolean  @default(true)
-  paymentReminderDays    Int      @default(7)
-  updatedAt              DateTime @updatedAt
-
-  family        Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  fixedExpenses FixedExpense[]
+  enableReceiptScanning  Boolean        @default(true)
+  paymentReminderDays    Int            @default(7)
+  sendPaymentReminders   Boolean        @default(true)
+  trackPaymentStatus     Boolean        @default(true)
+  family                 Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  fixedExpenses          FixedExpense[]
 }
 
 model FixedExpense {
-  id           String @id @default(uuid())
+  id           String          @id @default(uuid())
   settingsId   String
   title        String
   amount       Float
   splitParent1 Int
-
-  settings FinanceSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+  settings     FinanceSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
 
   @@index([settingsId])
 }
-
-// ==================== TASKS ====================
 
 model Task {
   id            String    @id @default(uuid())
@@ -424,10 +389,10 @@ model Task {
   title         String
   description   String?
   dueDate       DateTime?
-  priority      String    @default("medium") // low, medium, high, urgent
-  status        String    @default("pending") // pending, in_progress, completed, cancelled
-  assignedTo    String    @default("both") // parent1, parent2, both
-  category      String    @default("other") // medical, education, activity, shopping, household, paperwork, other
+  priority      String    @default("medium")
+  status        String    @default("pending")
+  assignedTo    String    @default("both")
+  category      String    @default("other")
   childId       String?
   createdById   String
   createdByName String?
@@ -435,39 +400,33 @@ model Task {
   completedById String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  family      Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  createdBy   User   @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  completedBy User?  @relation("TaskCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  completedBy   User?     @relation("TaskCompleter", fields: [completedById], references: [id])
+  createdBy     User      @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  family        Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
   @@index([familyId, status])
   @@index([familyId, dueDate])
 }
 
-// ==================== DOCUMENTS ====================
-
 model Document {
   id             String   @id @default(uuid())
   familyId       String
   title          String
   fileName       String
-  fileUrl        String   // S3/Cloudinary URL
-  fileSize       Int?     // in bytes
+  fileUrl        String
+  fileSize       Int?
   mimeType       String?
   childId        String?
   uploadedById   String?
   uploadedByName String?
   uploadedAt     DateTime @default(now())
-
-  family     Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  uploadedBy User?  @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  uploadedBy     User?    @relation("DocumentUploader", fields: [uploadedById], references: [id])
 
   @@index([familyId])
   @@index([familyId, childId])
 }
-
-// ==================== SWAP REQUESTS ====================
 
 model SwapRequest {
   id                   String    @id @default(uuid())
@@ -478,24 +437,22 @@ model SwapRequest {
   requestedToName      String?
   originalDate         DateTime
   proposedDate         DateTime?
-  previousProposedDate DateTime?  // Store original proposed date when countered
-  requestType          String    @default("swap") // swap, one-way
+  requestType          String    @default("swap")
   reason               String?
-  status               String    @default("pending") // pending, approved, rejected, cancelled, countered, final_pending
+  status               String    @default("pending")
   responseNote         String?
   respondedAt          DateTime?
-  // Counter flow fields
-  counteredById        String?
-  counterNote          String?
-  counteredAt          DateTime?
-  counterResponseNote  String?
-  counterRespondedAt   DateTime?
-  requesterConfirmedAt DateTime?
   createdAt            DateTime  @default(now())
-
-  family      Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  requestedBy User   @relation("SwapRequester", fields: [requestedById], references: [id], onDelete: Cascade)
-  requestedTo User   @relation("SwapResponder", fields: [requestedToId], references: [id], onDelete: Cascade)
+  counterNote          String?
+  counterRespondedAt   DateTime?
+  counterResponseNote  String?
+  counteredAt          DateTime?
+  counteredById        String?
+  previousProposedDate DateTime?
+  requesterConfirmedAt DateTime?
+  family               Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  requestedBy          User      @relation("SwapRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  requestedTo          User      @relation("SwapResponder", fields: [requestedToId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
   @@index([familyId, status])
@@ -503,30 +460,25 @@ model SwapRequest {
   @@index([requestedToId])
 }
 
-// ==================== PAYMENT RECEIPTS ====================
-
 model PaymentReceipt {
-  id            String   @id @default(uuid())
-  familyId      String
-  month         Int      // 0-11
-  year          Int
-  imageUrl      String   // Base64 or S3 URL
-  imageName     String?
-  amount        Float?
-  paidTo        String   // parent1, parent2
-  description   String?
-  uploadedById  String
+  id             String   @id @default(uuid())
+  familyId       String
+  month          Int
+  year           Int
+  imageUrl       String
+  imageName      String?
+  amount         Float?
+  paidTo         String
+  description    String?
+  uploadedById   String
   uploadedByName String?
-  createdAt     DateTime @default(now())
-
-  family     Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  uploadedBy User   @relation("PaymentReceiptUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  uploadedBy     User     @relation("PaymentReceiptUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
 
   @@index([familyId])
   @@index([familyId, year, month])
 }
-
-// ==================== CHAT ====================
 
 model ChatMessage {
   id          String    @id @default(uuid())
@@ -534,43 +486,34 @@ model ChatMessage {
   senderId    String
   senderName  String?
   text        String?
-  
-  // Image support
-  imageData   String?   // Base64 encoded image
+  imageData   String?
   imageWidth  Int?
   imageHeight Int?
-  
-  // Edit/Delete support
   edited      Boolean   @default(false)
   editedAt    DateTime?
   deleted     Boolean   @default(false)
   deletedAt   DateTime?
-  
   sentAt      DateTime  @default(now())
-
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  sender User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  sender      User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([familyId, sentAt])
   @@index([senderId])
 }
 
-// ==================== GOALS ====================
-
 model GoalTable {
-  id        String   @id @default(uuid())
+  id        String          @id @default(uuid())
   familyId  String
-  childId   String   // Reference to FamilyChild
+  childId   String
   childName String
   title     String
   startDate DateTime
   endDate   DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  family   Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  goals    Goal[]
-  progress DailyProgress[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  progress  DailyProgress[]
+  goals     Goal[]
+  family    Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
   @@index([familyId, childId])
@@ -583,44 +526,39 @@ model Goal {
   title       String
   icon        String?
   order       Int       @default(0)
-
-  goalTable GoalTable @relation(fields: [goalTableId], references: [id], onDelete: Cascade)
+  goalTable   GoalTable @relation(fields: [goalTableId], references: [id], onDelete: Cascade)
 
   @@index([goalTableId])
 }
 
 model DailyProgress {
-  id                   String   @id @default(uuid())
+  id                   String    @id @default(uuid())
   goalTableId          String
-  date                 DateTime // Date only (no time)
-  completedGoals       String[] // Array of Goal IDs
+  date                 DateTime
+  completedGoals       String[]
   notes                String?
-  completionPercentage Int      @default(0)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  goalTable GoalTable @relation(fields: [goalTableId], references: [id], onDelete: Cascade)
+  completionPercentage Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  goalTable            GoalTable @relation(fields: [goalTableId], references: [id], onDelete: Cascade)
 
   @@unique([goalTableId, date])
   @@index([goalTableId, date])
 }
 
-// ==================== MONTHLY SUMMARIES ====================
-
 model MonthlyExpenseSummary {
   id            String   @id @default(uuid())
   familyId      String
-  month         Int      // 0-11
+  month         Int
   year          Int
-  label         String   // "ינואר 2024"
+  label         String
   totalApproved Float    @default(0)
   parent1Share  Float    @default(0)
   parent2Share  Float    @default(0)
   approvedCount Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@unique([familyId, year, month])
   @@index([familyId])

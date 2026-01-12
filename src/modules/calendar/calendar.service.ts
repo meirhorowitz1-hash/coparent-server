@@ -1,8 +1,9 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, emitToFamilyExceptUser, SocketEvents } from '../../config/socket.js';
 import { sendPushToFamilyMembers, sendPushToUser } from '../../utils/push.js';
 import { formatDateTimeHebrew, getParentRole } from '../../utils/helpers.js';
 import { CreateEventInput, UpdateEventInput, CustodyScheduleInput } from './calendar.schema.js';
+import { createError } from '../../middleware/error.middleware.js';
 
 export class CalendarService {
   /**
@@ -56,6 +57,7 @@ export class CalendarService {
     userName: string,
     data: CreateEventInput
   ) {
+    const childId = await this.resolveChildId(familyId, data.childId);
     // Get target UIDs based on parentId
     const targetUids = await this.resolveTargetUids(familyId, data.parentId);
 
@@ -73,7 +75,7 @@ export class CalendarService {
         location: data.location,
         reminderMinutes: data.reminderMinutes,
         isAllDay: data.isAllDay,
-        childId: data.childId,
+        childId,
         createdById: userId,
         createdByName: userName,
       },
@@ -85,7 +87,8 @@ export class CalendarService {
     }
 
     // Emit socket event
-    emitToFamily(familyId, 'event:created', event);
+    emitToFamilyExceptUser(familyId, userId, SocketEvents.CALENDAR_EVENT_NEW, event);
+    emitToFamilyExceptUser(familyId, userId, 'event:created', event);
 
     // Send push notification
     const startDate = new Date(data.startDate);
@@ -128,6 +131,10 @@ export class CalendarService {
       targetUids = await this.resolveTargetUids(familyId, data.parentId);
     }
 
+    const childId = data.childId !== undefined
+      ? await this.resolveChildId(familyId, data.childId)
+      : undefined;
+
     const event = await prisma.calendarEvent.update({
       where: { id: eventId },
       data: {
@@ -141,7 +148,7 @@ export class CalendarService {
         ...(data.location !== undefined && { location: data.location }),
         ...(data.reminderMinutes !== undefined && { reminderMinutes: data.reminderMinutes }),
         ...(data.isAllDay !== undefined && { isAllDay: data.isAllDay }),
-        ...(data.childId !== undefined && { childId: data.childId }),
+        ...(childId !== undefined && { childId }),
       },
     });
 
@@ -149,6 +156,7 @@ export class CalendarService {
     await this.upsertReminder(event);
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.CALENDAR_EVENT_UPDATED, event);
     emitToFamily(familyId, 'event:updated', event);
 
     return event;
@@ -168,7 +176,31 @@ export class CalendarService {
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.CALENDAR_EVENT_DELETED, { id: eventId });
     emitToFamily(familyId, 'event:deleted', { id: eventId });
+  }
+
+  private async resolveChildId(
+    familyId: string,
+    childId?: string | null
+  ): Promise<string | null> {
+    if (!childId) {
+      return null;
+    }
+
+    const child = await prisma.familyChild.findFirst({
+      where: {
+        familyId,
+        OR: [{ id: childId }, { externalId: childId }],
+      },
+      select: { id: true },
+    });
+
+    if (!child) {
+      throw createError(400, 'child-not-found', 'Child not found');
+    }
+
+    return child.id;
   }
 
   /**
@@ -194,37 +226,64 @@ export class CalendarService {
       where: { familyId },
     });
 
-    if (data.requestApproval && existing) {
-      // Create pending approval request
-      const schedule = await prisma.custodySchedule.update({
-        where: { familyId },
-        data: {
-          pendingApproval: {
-            upsert: {
-              create: {
-                name: data.name,
-                pattern: data.pattern,
-                startDate: new Date(data.startDate),
-                parent1Days: data.parent1Days,
-                parent2Days: data.parent2Days,
-                requestedById: userId,
-                requestedByName: userName,
-              },
-              update: {
-                name: data.name,
-                pattern: data.pattern,
-                startDate: new Date(data.startDate),
-                parent1Days: data.parent1Days,
-                parent2Days: data.parent2Days,
-                requestedById: userId,
-                requestedByName: userName,
-                requestedAt: new Date(),
+    if (data.requestApproval) {
+      // Create or update pending approval request without applying changes yet
+      const schedule = existing
+        ? await prisma.custodySchedule.update({
+            where: { familyId },
+            data: {
+              pendingApproval: {
+                upsert: {
+                  create: {
+                    name: data.name,
+                    pattern: data.pattern,
+                    startDate: new Date(data.startDate),
+                    parent1Days: data.parent1Days,
+                    parent2Days: data.parent2Days,
+                    requestedById: userId,
+                    requestedByName: userName,
+                  },
+                  update: {
+                    name: data.name,
+                    pattern: data.pattern,
+                    startDate: new Date(data.startDate),
+                    parent1Days: data.parent1Days,
+                    parent2Days: data.parent2Days,
+                    requestedById: userId,
+                    requestedByName: userName,
+                    requestedAt: new Date(),
+                  },
+                },
               },
             },
-          },
-        },
-        include: { pendingApproval: true },
-      });
+            include: { pendingApproval: true },
+          })
+        : await prisma.custodySchedule.create({
+            data: {
+              familyId,
+              name: data.name,
+              pattern: data.pattern,
+              startDate: new Date(data.startDate),
+              endDate: data.endDate ? new Date(data.endDate) : null,
+              parent1Days: data.parent1Days,
+              parent2Days: data.parent2Days,
+              biweeklyAltParent1Days: data.biweeklyAltParent1Days || [],
+              biweeklyAltParent2Days: data.biweeklyAltParent2Days || [],
+              isActive: false,
+              pendingApproval: {
+                create: {
+                  name: data.name,
+                  pattern: data.pattern,
+                  startDate: new Date(data.startDate),
+                  parent1Days: data.parent1Days,
+                  parent2Days: data.parent2Days,
+                  requestedById: userId,
+                  requestedByName: userName,
+                },
+              },
+            },
+            include: { pendingApproval: true },
+          });
 
       // Notify other parent
       await sendPushToFamilyMembers(

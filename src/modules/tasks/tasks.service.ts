@@ -1,5 +1,5 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, emitToFamilyExceptUser, SocketEvents } from '../../config/socket.js';
 import { sendPushToFamilyMembers } from '../../utils/push.js';
 import { CreateTaskInput, UpdateTaskInput } from './tasks.schema.js';
 
@@ -61,7 +61,8 @@ export class TasksService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'task:created', task);
+    emitToFamilyExceptUser(familyId, userId, SocketEvents.TASK_NEW, task);
+    emitToFamilyExceptUser(familyId, userId, 'task:created', task);
 
     // Send push notification
     await sendPushToFamilyMembers(
