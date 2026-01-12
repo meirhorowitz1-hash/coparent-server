@@ -10,7 +10,7 @@ async function adminMiddleware(req: AuthRequest, res: Response, next: Function) 
   if (!req.user?.email || !adminService.isAdminUser(req.user.email)) {
     return res.status(403).json({ error: 'forbidden', message: 'Admin access required' });
   }
-  next();
+  return next();
 }
 
 // Apply auth and admin middleware to all routes
@@ -18,13 +18,13 @@ router.use(authMiddleware, adminMiddleware);
 
 // Get list of all tables
 router.get('/tables', async (req: AuthRequest, res: Response) => {
-  res.json({ tables: TABLES });
+  return res.json({ tables: TABLES });
 });
 
 // Get database stats
 router.get('/stats', async (req: AuthRequest, res: Response) => {
   const stats = await adminService.getDbStats();
-  res.json(stats);
+  return res.json(stats);
 });
 
 // Get table schema
@@ -36,7 +36,7 @@ router.get('/tables/:tableName/schema', async (req: AuthRequest, res: Response) 
   }
 
   const schema = await adminService.getTableSchema(tableName as TableName);
-  res.json(schema);
+  return res.json(schema);
 });
 
 // Get table data with pagination
@@ -57,7 +57,7 @@ router.get('/tables/:tableName', async (req: AuthRequest, res: Response) => {
     searchField: searchField as string,
   });
 
-  res.json(data);
+  return res.json(data);
 });
 
 // Get single record
@@ -74,7 +74,7 @@ router.get('/tables/:tableName/:id', async (req: AuthRequest, res: Response) => 
     return res.status(404).json({ error: 'not_found', message: 'Record not found' });
   }
 
-  res.json(record);
+  return res.json(record);
 });
 
 // Create new record
@@ -87,10 +87,10 @@ router.post('/tables/:tableName', async (req: AuthRequest, res: Response) => {
 
   try {
     const record = await adminService.createRecord(tableName as TableName, req.body);
-    res.status(201).json(record);
+    return res.status(201).json(record);
   } catch (error: any) {
     console.error('Error creating record:', error);
-    res.status(400).json({ error: 'bad_request', message: error.message });
+    return res.status(400).json({ error: 'bad_request', message: error.message });
   }
 });
 
@@ -104,10 +104,10 @@ router.put('/tables/:tableName/:id', async (req: AuthRequest, res: Response) => 
 
   try {
     const record = await adminService.updateRecord(tableName as TableName, id, req.body);
-    res.json(record);
+    return res.json(record);
   } catch (error: any) {
     console.error('Error updating record:', error);
-    res.status(400).json({ error: 'bad_request', message: error.message });
+    return res.status(400).json({ error: 'bad_request', message: error.message });
   }
 });
 
@@ -121,10 +121,10 @@ router.delete('/tables/:tableName/:id', async (req: AuthRequest, res: Response) 
 
   try {
     await adminService.deleteRecord(tableName as TableName, id);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: any) {
     console.error('Error deleting record:', error);
-    res.status(400).json({ error: 'bad_request', message: error.message });
+    return res.status(400).json({ error: 'bad_request', message: error.message });
   }
 });
 
@@ -143,10 +143,10 @@ router.post('/tables/:tableName/delete-many', async (req: AuthRequest, res: Resp
 
   try {
     const result = await adminService.deleteMultipleRecords(tableName as TableName, ids);
-    res.json({ success: true, deleted: result.count });
+    return res.json({ success: true, deleted: result.count });
   } catch (error: any) {
     console.error('Error deleting records:', error);
-    res.status(400).json({ error: 'bad_request', message: error.message });
+    return res.status(400).json({ error: 'bad_request', message: error.message });
   }
 });
 
@@ -160,10 +160,10 @@ router.post('/query', async (req: AuthRequest, res: Response) => {
 
   try {
     const result = await adminService.executeRawQuery(query);
-    res.json({ data: result });
+    return res.json({ data: result });
   } catch (error: any) {
     console.error('Error executing query:', error);
-    res.status(400).json({ error: 'bad_request', message: error.message });
+    return res.status(400).json({ error: 'bad_request', message: error.message });
   }
 });
 
