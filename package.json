@@ -8,7 +8,7 @@
     "dev": "tsx watch src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "railway:start": "prisma generate && node dist/app.js",
+    "railway:start": "prisma migrate deploy && prisma generate && node dist/app.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
