@@ -45,11 +45,17 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // In development, allow all localhost origins
-    if (process.env.NODE_ENV === 'development') {
-      if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
-        return callback(null, true);
-      }
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    const isDevOrigin = isLocalhost || origin.startsWith('capacitor://') || origin.startsWith('ionic://');
+
+    // In development, allow all localhost/capacitor/ionic origins
+    if (process.env.NODE_ENV === 'development' && isDevOrigin) {
+      return callback(null, true);
+    }
+
+    // Allow localhost in other environments when explicitly enabled
+    if (process.env.CORS_ALLOW_LOCALHOST === 'true' && isLocalhost) {
+      return callback(null, true);
     }
 
     // In production, check against allowed origins
