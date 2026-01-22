@@ -1,16 +1,14 @@
 import cron from 'node-cron';
 import prisma from '../config/database.js';
 import { sendPushToUsers } from '../utils/push.js';
-import { formatDateTimeHebrew } from '../utils/helpers.js';
+import { formatDateTimeHebrew, formatDateHebrew } from '../utils/helpers.js';
 
 /**
  * Dispatch due event reminders
  * Runs every minute
  */
-async function dispatchDueReminders(): Promise<void> {
+async function dispatchDueEventReminders(): Promise<void> {
   const now = new Date();
-  
-  console.log('[Reminder Job] Checking for due reminders at', now.toISOString());
 
   try {
     // Find reminders that are due and not yet sent
@@ -26,7 +24,7 @@ async function dispatchDueReminders(): Promise<void> {
       return;
     }
 
-    console.log(`[Reminder Job] Found ${dueReminders.length} due reminders`);
+    console.log(`[Reminder Job] Found ${dueReminders.length} due event reminders`);
 
     for (const reminder of dueReminders) {
       try {
@@ -53,15 +51,102 @@ async function dispatchDueReminders(): Promise<void> {
           },
         });
 
-        console.log(`[Reminder Job] Sent reminder for event ${reminder.eventId}`);
+        console.log(`[Reminder Job] Sent event reminder for ${reminder.eventId}`);
       } catch (error) {
-        console.error(`[Reminder Job] Failed to send reminder ${reminder.id}:`, error);
-        // Don't mark as sent so it will be retried
+        console.error(`[Reminder Job] Failed to send event reminder ${reminder.id}:`, error);
       }
     }
   } catch (error) {
-    console.error('[Reminder Job] Error:', error);
+    console.error('[Reminder Job] Event reminders error:', error);
   }
+}
+
+/**
+ * Dispatch due task reminders
+ * Runs every minute
+ */
+async function dispatchDueTaskReminders(): Promise<void> {
+  const now = new Date();
+
+  try {
+    // Find task reminders that are due and not yet sent
+    const dueReminders = await prisma.taskReminder.findMany({
+      where: {
+        sent: false,
+        sendAt: { lte: now },
+      },
+      include: {
+        task: true,
+      },
+      take: 50, // Process in batches
+    });
+
+    if (dueReminders.length === 0) {
+      return;
+    }
+
+    console.log(`[Reminder Job] Found ${dueReminders.length} due task reminders`);
+
+    for (const reminder of dueReminders) {
+      try {
+        // Skip if task is already completed
+        if (reminder.task?.status === 'completed' || reminder.task?.status === 'cancelled') {
+          // Mark as sent without sending
+          await prisma.taskReminder.update({
+            where: { id: reminder.id },
+            data: {
+              sent: true,
+              sentAt: new Date(),
+            },
+          });
+          continue;
+        }
+
+        // Send push notification
+        await sendPushToUsers(
+          reminder.targetUids,
+          {
+            title: `תזכורת למשימה: ${reminder.title}`,
+            body: reminder.dueDate ? formatDateHebrew(reminder.dueDate) : 'ללא תאריך',
+          },
+          {
+            type: 'task-reminder',
+            familyId: reminder.familyId,
+            taskId: reminder.taskId,
+          }
+        );
+
+        // Mark as sent
+        await prisma.taskReminder.update({
+          where: { id: reminder.id },
+          data: {
+            sent: true,
+            sentAt: new Date(),
+          },
+        });
+
+        console.log(`[Reminder Job] Sent task reminder for ${reminder.taskId}`);
+      } catch (error) {
+        console.error(`[Reminder Job] Failed to send task reminder ${reminder.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[Reminder Job] Task reminders error:', error);
+  }
+}
+
+/**
+ * Dispatch all due reminders (events + tasks)
+ * Runs every minute
+ */
+async function dispatchDueReminders(): Promise<void> {
+  const now = new Date();
+  console.log('[Reminder Job] Checking for due reminders at', now.toISOString());
+
+  await Promise.all([
+    dispatchDueEventReminders(),
+    dispatchDueTaskReminders(),
+  ]);
 }
 
 /**
@@ -73,15 +158,25 @@ async function cleanupOldReminders(): Promise<void> {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
   try {
-    const result = await prisma.eventReminder.deleteMany({
+    // Clean up event reminders
+    const eventResult = await prisma.eventReminder.deleteMany({
       where: {
         sent: true,
         sentAt: { lt: sevenDaysAgo },
       },
     });
 
-    if (result.count > 0) {
-      console.log(`[Reminder Job] Cleaned up ${result.count} old reminders`);
+    // Clean up task reminders
+    const taskResult = await prisma.taskReminder.deleteMany({
+      where: {
+        sent: true,
+        sentAt: { lt: sevenDaysAgo },
+      },
+    });
+
+    const totalCleaned = eventResult.count + taskResult.count;
+    if (totalCleaned > 0) {
+      console.log(`[Reminder Job] Cleaned up ${totalCleaned} old reminders (${eventResult.count} events, ${taskResult.count} tasks)`);
     }
   } catch (error) {
     console.error('[Reminder Job] Cleanup error:', error);

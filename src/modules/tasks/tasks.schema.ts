@@ -5,6 +5,11 @@ export const taskStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'ca
 export const taskCategoryEnum = z.enum(['medical', 'education', 'activity', 'shopping', 'household', 'paperwork', 'other']);
 export const assignedToEnum = z.enum(['parent1', 'parent2', 'both']);
 
+export const taskReminderSchema = z.object({
+  minutes: z.number().min(0),
+  sent: z.boolean().default(false),
+});
+
 export const createTaskSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(1000).optional().nullable(),
@@ -13,6 +18,7 @@ export const createTaskSchema = z.object({
   assignedTo: assignedToEnum.default('both'),
   category: taskCategoryEnum.default('other'),
   childId: z.string().uuid().optional().nullable(),
+  reminders: z.array(taskReminderSchema).optional().nullable(),
 });
 
 export const updateTaskSchema = z.object({
@@ -23,6 +29,7 @@ export const updateTaskSchema = z.object({
   assignedTo: assignedToEnum.optional(),
   category: taskCategoryEnum.optional(),
   childId: z.string().uuid().optional().nullable(),
+  reminders: z.array(taskReminderSchema).optional().nullable(),
 });
 
 export const updateTaskStatusSchema = z.object({

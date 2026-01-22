@@ -3,6 +3,11 @@ import { emitToFamily, emitToFamilyExceptUser, SocketEvents } from '../../config
 import { sendPushToFamilyMembers } from '../../utils/push.js';
 import { CreateTaskInput, UpdateTaskInput } from './tasks.schema.js';
 
+interface TaskReminderInput {
+  minutes: number;
+  sent?: boolean;
+}
+
 export class TasksService {
   /**
    * Get all tasks for a family
@@ -19,6 +24,9 @@ export class TasksService {
         ...(filters?.assignedTo && { assignedTo: filters.assignedTo }),
         ...(filters?.category && { category: filters.category }),
       },
+      include: {
+        reminder: true,
+      },
       orderBy: [
         { dueDate: 'asc' },
         { priority: 'desc' },
@@ -33,6 +41,9 @@ export class TasksService {
   async getById(taskId: string) {
     return prisma.task.findUnique({
       where: { id: taskId },
+      include: {
+        reminder: true,
+      },
     });
   }
 
@@ -45,12 +56,14 @@ export class TasksService {
     userName: string,
     data: CreateTaskInput
   ) {
+    const dueDate = data.dueDate ? new Date(data.dueDate) : null;
+
     const task = await prisma.task.create({
       data: {
         familyId,
         title: data.title,
         description: data.description,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        dueDate,
         priority: data.priority,
         assignedTo: data.assignedTo,
         category: data.category,
@@ -58,11 +71,22 @@ export class TasksService {
         createdById: userId,
         createdByName: userName,
       },
+      include: {
+        reminder: true,
+      },
     });
 
+    // Create reminder if provided and dueDate exists
+    if (dueDate && data.reminders?.length) {
+      await this.createOrUpdateReminder(task.id, familyId, data.title, dueDate, data.reminders[0]);
+    }
+
+    // Fetch task with reminder
+    const taskWithReminder = await this.getById(task.id);
+
     // Emit socket event
-    emitToFamilyExceptUser(familyId, userId, SocketEvents.TASK_NEW, task);
-    emitToFamilyExceptUser(familyId, userId, 'task:created', task);
+    emitToFamilyExceptUser(familyId, userId, SocketEvents.TASK_NEW, taskWithReminder);
+    emitToFamilyExceptUser(familyId, userId, 'task:created', taskWithReminder);
 
     // Send push notification
     await sendPushToFamilyMembers(
@@ -79,7 +103,7 @@ export class TasksService {
       }
     );
 
-    return task;
+    return taskWithReminder;
   }
 
   /**
@@ -90,25 +114,55 @@ export class TasksService {
     familyId: string,
     data: UpdateTaskInput
   ) {
+    const dueDate = data.dueDate !== undefined 
+      ? (data.dueDate ? new Date(data.dueDate) : null) 
+      : undefined;
+
     const task = await prisma.task.update({
       where: { id: taskId },
       data: {
         ...(data.title !== undefined && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
-        ...(data.dueDate !== undefined && { 
-          dueDate: data.dueDate ? new Date(data.dueDate) : null 
-        }),
+        ...(dueDate !== undefined && { dueDate }),
         ...(data.priority !== undefined && { priority: data.priority }),
         ...(data.assignedTo !== undefined && { assignedTo: data.assignedTo }),
         ...(data.category !== undefined && { category: data.category }),
         ...(data.childId !== undefined && { childId: data.childId }),
       },
+      include: {
+        reminder: true,
+      },
     });
 
-    // Emit socket event
-    emitToFamily(familyId, 'task:updated', task);
+    // Handle reminder updates
+    const finalDueDate = dueDate !== undefined ? dueDate : task.dueDate;
+    const title = data.title ?? task.title;
 
-    return task;
+    if (data.reminders !== undefined) {
+      if (finalDueDate && data.reminders?.length) {
+        // Create or update reminder
+        await this.createOrUpdateReminder(taskId, familyId, title, finalDueDate, data.reminders[0]);
+      } else {
+        // Delete reminder if no reminders or no dueDate
+        await this.deleteReminder(taskId);
+      }
+    } else if (dueDate !== undefined) {
+      // dueDate changed, update existing reminder if present
+      if (task.reminder && finalDueDate) {
+        await this.createOrUpdateReminder(taskId, familyId, title, finalDueDate, { minutes: task.reminder.minutes });
+      } else if (!finalDueDate) {
+        // dueDate removed, delete reminder
+        await this.deleteReminder(taskId);
+      }
+    }
+
+    // Fetch updated task with reminder
+    const updatedTask = await this.getById(taskId);
+
+    // Emit socket event
+    emitToFamily(familyId, 'task:updated', updatedTask);
+
+    return updatedTask;
   }
 
   /**
@@ -127,18 +181,32 @@ export class TasksService {
         completedAt: status === 'completed' ? new Date() : null,
         completedById: status === 'completed' ? userId : null,
       },
+      include: {
+        reminder: true,
+      },
     });
 
-    // Emit socket event
-    emitToFamily(familyId, 'task:updated', task);
+    // Delete reminder if task is completed or cancelled
+    if (status === 'completed' || status === 'cancelled') {
+      await this.deleteReminder(taskId);
+    }
 
-    return task;
+    // Fetch updated task
+    const updatedTask = await this.getById(taskId);
+
+    // Emit socket event
+    emitToFamily(familyId, 'task:updated', updatedTask);
+
+    return updatedTask;
   }
 
   /**
    * Delete task
    */
   async delete(taskId: string, familyId: string) {
+    // Delete reminder first (cascade should handle this, but being explicit)
+    await this.deleteReminder(taskId);
+
     await prisma.task.delete({
       where: { id: taskId },
     });
@@ -166,6 +234,84 @@ export class TasksService {
     ]);
 
     return { total, pending, inProgress, completed, overdue };
+  }
+
+  // ==================== REMINDER HELPERS ====================
+
+  /**
+   * Create or update task reminder
+   */
+  private async createOrUpdateReminder(
+    taskId: string,
+    familyId: string,
+    title: string,
+    dueDate: Date,
+    reminderInput: TaskReminderInput
+  ): Promise<void> {
+    const minutes = reminderInput.minutes;
+    const sendAt = this.calculateSendAt(dueDate, minutes);
+
+    // Get target users (family members)
+    const targetUids = await this.getFamilyMemberUids(familyId);
+
+    await prisma.taskReminder.upsert({
+      where: { taskId },
+      create: {
+        taskId,
+        familyId,
+        title,
+        dueDate,
+        sendAt,
+        minutes,
+        sent: false,
+        targetUids,
+      },
+      update: {
+        title,
+        dueDate,
+        sendAt,
+        minutes,
+        sent: false, // Reset sent status when updated
+        sentAt: null,
+        targetUids,
+      },
+    });
+  }
+
+  /**
+   * Delete task reminder
+   */
+  private async deleteReminder(taskId: string): Promise<void> {
+    try {
+      await prisma.taskReminder.delete({
+        where: { taskId },
+      });
+    } catch (error: any) {
+      // Ignore not found errors
+      if (error?.code !== 'P2025') {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Calculate when to send the reminder
+   */
+  private calculateSendAt(dueDate: Date, minutes: number): Date {
+    const sendAt = new Date(dueDate);
+    sendAt.setMinutes(sendAt.getMinutes() - minutes);
+    return sendAt;
+  }
+
+  /**
+   * Get family member UIDs for targeting reminders
+   */
+  private async getFamilyMemberUids(familyId: string): Promise<string[]> {
+    const members = await prisma.familyMember.findMany({
+      where: { familyId },
+      select: { userId: true },
+    });
+    return members.map(m => m.userId);
   }
 }
 
