@@ -185,7 +185,9 @@ The script will:
 1. Connect your repository to Railway
 2. Add PostgreSQL database
 3. Set environment variables
-4. Deploy
+4. Set build command: `npm install && npm run build`
+5. Set start command: `npm run railway:start`
+6. Deploy
 
 ### Render
 

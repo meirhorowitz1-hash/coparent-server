@@ -5,6 +5,7 @@ import chatRoutes from '../chat/chat.routes.js';
 import paymentReceiptsRoutes from '../payment-receipts/payment-receipts.routes.js';
 import goalsRoutes from '../goals/goals.routes.js';
 import monthlySummariesRoutes from '../monthly-summaries/monthly-summaries.routes.js';
+import contactsRoutes from '../contacts/contacts.routes.js';
 
 const router = Router();
 
@@ -64,5 +65,8 @@ router.use('/:familyId/goals', familyMemberMiddleware, goalsRoutes);
 
 // Monthly summaries routes (nested under family)
 router.use('/:familyId/monthly-summaries', familyMemberMiddleware, monthlySummariesRoutes);
+
+// Contacts routes (nested under family)
+router.use('/:familyId/contacts', familyMemberMiddleware, contactsRoutes);
 
 export default router;

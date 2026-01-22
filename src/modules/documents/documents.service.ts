@@ -1,5 +1,5 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, SocketEvents } from '../../config/socket.js';
 import { storageService, storageServiceFirebase, extractStorageKeyFromUrl } from '../../services/storage.service.js';
 
 export class DocumentsService {
@@ -77,7 +77,7 @@ export class DocumentsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'document:created', document);
+    emitToFamily(familyId, SocketEvents.DOCUMENT_NEW, document);
 
     return document;
   }
@@ -113,7 +113,7 @@ export class DocumentsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'document:deleted', { id: documentId });
+    emitToFamily(familyId, SocketEvents.DOCUMENT_DELETED, { id: documentId });
   }
 }
 

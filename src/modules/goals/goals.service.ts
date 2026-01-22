@@ -1,5 +1,5 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, SocketEvents } from '../../config/socket.js';
 import { CreateGoalTableInput, UpdateGoalTableInput, UpsertDailyProgressInput } from './goals.schema.js';
 
 export class GoalsService {
@@ -78,7 +78,7 @@ export class GoalsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'goal-table:created', goalTable);
+    emitToFamily(familyId, SocketEvents.GOAL_TABLE_CREATED, goalTable);
 
     return goalTable;
   }
@@ -125,7 +125,7 @@ export class GoalsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'goal-table:updated', goalTable);
+    emitToFamily(familyId, SocketEvents.GOAL_TABLE_UPDATED, goalTable);
 
     return goalTable;
   }
@@ -139,7 +139,7 @@ export class GoalsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'goal-table:deleted', { id: tableId });
+    emitToFamily(familyId, SocketEvents.GOAL_TABLE_DELETED, { id: tableId });
   }
 
   /**
@@ -205,7 +205,7 @@ export class GoalsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'goal-progress:updated', {
+    emitToFamily(familyId, SocketEvents.GOAL_PROGRESS_UPDATED, {
       goalTableId: tableId,
       progress,
     });
@@ -295,3 +295,6 @@ export class GoalsService {
     };
   }
 }
+
+export const goalsService = new GoalsService();
+export default goalsService;

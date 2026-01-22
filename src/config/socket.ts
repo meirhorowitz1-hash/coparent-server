@@ -42,6 +42,37 @@ export const SocketEvents = {
   FAMILY_UPDATED: 'family:updated',
   FAMILY_MEMBER_JOINED: 'family:member:joined',
   FAMILY_MEMBER_LEFT: 'family:member:left',
+
+  // Payment receipt events
+  PAYMENT_RECEIPT_NEW: 'payment-receipt:new',
+  PAYMENT_RECEIPT_UPDATED: 'payment-receipt:updated',
+  PAYMENT_RECEIPT_DELETED: 'payment-receipt:deleted',
+
+  // Document events
+  DOCUMENT_NEW: 'document:new',
+  DOCUMENT_DELETED: 'document:deleted',
+
+  // Goal events
+  GOAL_PROGRESS_UPDATED: 'goal-progress:updated',
+  GOAL_TABLE_CREATED: 'goal-table:created',
+  GOAL_TABLE_UPDATED: 'goal-table:updated',
+  GOAL_TABLE_DELETED: 'goal-table:deleted',
+
+  // Custody events
+  CUSTODY_UPDATED: 'custody:updated',
+  CUSTODY_DELETED: 'custody:deleted',
+  CUSTODY_OVERRIDE_CREATED: 'custody-override:created',
+  CUSTODY_OVERRIDE_UPDATED: 'custody-override:updated',
+  CUSTODY_OVERRIDE_DELETED: 'custody-override:deleted',
+  CUSTODY_OVERRIDE_DELETED_ALL: 'custody-override:deleted-all',
+
+  // Contact events
+  CONTACT_NEW: 'contact:new',
+  CONTACT_UPDATED: 'contact:updated',
+  CONTACT_DELETED: 'contact:deleted',
+
+  // Monthly summary events
+  MONTHLY_SUMMARY_UPDATED: 'monthly-summary:updated',
 } as const;
 
 /**

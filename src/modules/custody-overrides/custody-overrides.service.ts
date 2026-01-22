@@ -1,5 +1,5 @@
 import prisma from '../../config/database.js';
-import { emitToFamily } from '../../config/socket.js';
+import { emitToFamily, SocketEvents } from '../../config/socket.js';
 import { CreateCustodyOverrideInput, RespondCustodyOverrideInput } from './custody-overrides.schema.js';
 
 export class CustodyOverridesService {
@@ -109,7 +109,7 @@ export class CustodyOverridesService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'custody-override:created', override);
+    emitToFamily(familyId, SocketEvents.CUSTODY_OVERRIDE_CREATED, override);
 
     return override;
   }
@@ -149,7 +149,7 @@ export class CustodyOverridesService {
     });
 
     // Emit socket event
-    emitToFamily(override.familyId, 'custody-override:updated', updated);
+    emitToFamily(override.familyId, SocketEvents.CUSTODY_OVERRIDE_UPDATED, updated);
 
     return updated;
   }
@@ -180,7 +180,7 @@ export class CustodyOverridesService {
     });
 
     // Emit socket event
-    emitToFamily(override.familyId, 'custody-override:deleted', { id: overrideId });
+    emitToFamily(override.familyId, SocketEvents.CUSTODY_OVERRIDE_DELETED, { id: overrideId });
   }
 
   /**
@@ -200,7 +200,7 @@ export class CustodyOverridesService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'custody-override:deleted', { id: overrideId });
+    emitToFamily(familyId, SocketEvents.CUSTODY_OVERRIDE_DELETED, { id: overrideId });
   }
 
   /**
@@ -212,7 +212,7 @@ export class CustodyOverridesService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, 'custody-override:deleted-all', { count: deleted.count });
+    emitToFamily(familyId, SocketEvents.CUSTODY_OVERRIDE_DELETED_ALL, { count: deleted.count });
 
     return deleted;
   }

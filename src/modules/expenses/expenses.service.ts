@@ -97,7 +97,6 @@ export class ExpensesService {
     userName: string,
     data: UpdateExpenseInput
   ) {
-    // Check if expense is still pending
     const existing = await prisma.expense.findUnique({
       where: { id: expenseId },
     });
@@ -106,13 +105,37 @@ export class ExpensesService {
       throw new Error('expense-not-found');
     }
 
-    if (existing.status !== 'pending') {
+    // Allow editing appeal fields on any expense, but other fields only on pending
+    const isAppealUpdate = (
+      data.appealNote !== undefined ||
+      data.appealRequestedById !== undefined ||
+      data.appealRequestedByName !== undefined ||
+      data.appealRequestedAt !== undefined ||
+      data.appealResponseNote !== undefined ||
+      data.appealRespondedById !== undefined ||
+      data.appealRespondedByName !== undefined ||
+      data.appealRespondedAt !== undefined
+    );
+
+    const isRegularUpdate = (
+      data.title !== undefined ||
+      data.amount !== undefined ||
+      data.date !== undefined ||
+      data.notes !== undefined ||
+      data.splitParent1 !== undefined ||
+      data.receiptUrl !== undefined ||
+      data.receiptName !== undefined
+    );
+
+    // Only block regular updates on non-pending expenses
+    if (isRegularUpdate && existing.status !== 'pending') {
       throw new Error('cannot-edit-non-pending');
     }
 
     const expense = await prisma.expense.update({
       where: { id: expenseId },
       data: {
+        // Regular fields
         ...(data.title !== undefined && { title: data.title }),
         ...(data.amount !== undefined && { amount: data.amount }),
         ...(data.date !== undefined && { date: new Date(data.date) }),
@@ -120,12 +143,23 @@ export class ExpensesService {
         ...(data.splitParent1 !== undefined && { splitParent1: data.splitParent1 }),
         ...(data.receiptUrl !== undefined && { receiptUrl: data.receiptUrl }),
         ...(data.receiptName !== undefined && { receiptName: data.receiptName }),
+        // Appeal fields
+        ...(data.appealNote !== undefined && { appealNote: data.appealNote }),
+        ...(data.appealRequestedById !== undefined && { appealRequestedById: data.appealRequestedById }),
+        ...(data.appealRequestedByName !== undefined && { appealRequestedByName: data.appealRequestedByName }),
+        ...(data.appealRequestedAt !== undefined && { appealRequestedAt: data.appealRequestedAt ? new Date(data.appealRequestedAt) : null }),
+        ...(data.appealResponseNote !== undefined && { appealResponseNote: data.appealResponseNote }),
+        ...(data.appealRespondedById !== undefined && { appealRespondedById: data.appealRespondedById }),
+        ...(data.appealRespondedByName !== undefined && { appealRespondedByName: data.appealRespondedByName }),
+        ...(data.appealRespondedAt !== undefined && { appealRespondedAt: data.appealRespondedAt ? new Date(data.appealRespondedAt) : null }),
+        // Updated by
         updatedById: userId,
         updatedByName: userName,
       },
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.EXPENSE_UPDATED, expense);
     emitToFamily(familyId, 'expense:updated', expense);
 
     return expense;
@@ -139,7 +173,8 @@ export class ExpensesService {
     familyId: string,
     userId: string,
     userName: string,
-    status: 'pending' | 'approved' | 'rejected'
+    status: 'pending' | 'approved' | 'rejected',
+    rejectionNote?: string | null
   ) {
     const existing = await prisma.expense.findUnique({
       where: { id: expenseId },
@@ -154,12 +189,15 @@ export class ExpensesService {
       data: {
         status,
         isPaid: status === 'approved' ? existing.isPaid : false,
+        // Set rejectionNote on reject/approve, clear on other statuses
+        rejectionNote: (status === 'rejected' || status === 'approved') ? (rejectionNote ?? null) : null,
         updatedById: userId,
         updatedByName: userName,
       },
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.EXPENSE_UPDATED, expense);
     emitToFamily(familyId, 'expense:updated', expense);
 
     // Send push notification to creator
@@ -211,6 +249,7 @@ export class ExpensesService {
     });
 
     // Emit socket event
+    emitToFamily(familyId, SocketEvents.EXPENSE_UPDATED, expense);
     emitToFamily(familyId, 'expense:updated', expense);
 
     return expense;

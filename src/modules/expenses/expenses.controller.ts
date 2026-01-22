@@ -131,7 +131,7 @@ export class ExpensesController {
     const { expenseId } = req.params;
     const userId = req.user!.uid;
     const userName = req.body.updatedByName || 'הורה';
-    const { status } = updateExpenseStatusSchema.parse(req.body);
+    const { status, rejectionNote } = updateExpenseStatusSchema.parse(req.body);
 
     try {
       const expense = await expensesService.updateStatus(
@@ -139,7 +139,8 @@ export class ExpensesController {
         req.familyId!,
         userId,
         userName,
-        status
+        status,
+        rejectionNote
       );
       return res.json(expense);
     } catch (error) {

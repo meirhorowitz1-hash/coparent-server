@@ -18,10 +18,22 @@ export const updateExpenseSchema = z.object({
   splitParent1: z.number().min(0).max(100).optional(),
   receiptUrl: z.string().url().optional().nullable(),
   receiptName: z.string().max(200).optional().nullable(),
+  updatedByName: z.string().max(100).optional(),
+  // Appeal fields
+  appealNote: z.string().max(1000).optional().nullable(),
+  appealRequestedById: z.string().optional().nullable(),
+  appealRequestedByName: z.string().max(100).optional().nullable(),
+  appealRequestedAt: z.string().datetime().optional().nullable(),
+  appealResponseNote: z.string().max(1000).optional().nullable(),
+  appealRespondedById: z.string().optional().nullable(),
+  appealRespondedByName: z.string().max(100).optional().nullable(),
+  appealRespondedAt: z.string().datetime().optional().nullable(),
 });
 
 export const updateExpenseStatusSchema = z.object({
   status: z.enum(['pending', 'approved', 'rejected']),
+  rejectionNote: z.string().max(1000).optional().nullable(),
+  updatedByName: z.string().max(100).optional(),
 });
 
 export const togglePaidSchema = z.object({

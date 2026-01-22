@@ -6,11 +6,6 @@ import {
   ListPaymentReceiptsQuery 
 } from './payment-receipts.schema.js';
 
-// Add socket event for payment receipts
-const PAYMENT_RECEIPT_NEW = 'payment-receipt:new';
-const PAYMENT_RECEIPT_UPDATED = 'payment-receipt:updated';
-const PAYMENT_RECEIPT_DELETED = 'payment-receipt:deleted';
-
 export interface MonthlyPaymentSummary {
   month: number;
   year: number;
@@ -122,7 +117,7 @@ export class PaymentReceiptsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, PAYMENT_RECEIPT_NEW, receipt);
+    emitToFamily(familyId, SocketEvents.PAYMENT_RECEIPT_NEW, receipt);
 
     return receipt;
   }
@@ -163,7 +158,7 @@ export class PaymentReceiptsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, PAYMENT_RECEIPT_UPDATED, receipt);
+    emitToFamily(familyId, SocketEvents.PAYMENT_RECEIPT_UPDATED, receipt);
 
     return receipt;
   }
@@ -199,7 +194,7 @@ export class PaymentReceiptsService {
     });
 
     // Emit socket event
-    emitToFamily(familyId, PAYMENT_RECEIPT_DELETED, { id: receiptId });
+    emitToFamily(familyId, SocketEvents.PAYMENT_RECEIPT_DELETED, { id: receiptId });
 
     return { id: receiptId, deleted: true };
   }

@@ -63,6 +63,7 @@ model Family {
   updatedAt          DateTime                @updatedAt
   calendarEvents     CalendarEvent[]
   chatMessages       ChatMessage[]
+  contacts           Contact[]
   custodyOverrides   CustodyOverride[]
   custodySchedule    CustodySchedule?
   documents          Document[]
@@ -329,26 +330,37 @@ model EventReminder {
 }
 
 model Expense {
-  id            String   @id @default(uuid())
-  familyId      String
-  title         String
-  amount        Float
-  date          DateTime
-  notes         String?
-  receiptUrl    String?
-  receiptName   String?
-  splitParent1  Int      @default(50)
-  status        String   @default("pending")
-  isPaid        Boolean  @default(false)
-  createdById   String
-  createdByName String?
-  updatedById   String?
-  updatedByName String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  createdBy     User     @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  updatedBy     User?    @relation("ExpenseUpdater", fields: [updatedById], references: [id])
+  id                    String    @id @default(uuid())
+  familyId              String
+  title                 String
+  amount                Float
+  date                  DateTime
+  notes                 String?
+  receiptUrl            String?
+  receiptName           String?
+  splitParent1          Int       @default(50)
+  status                String    @default("pending")
+  isPaid                Boolean   @default(false)
+  createdById           String
+  createdByName         String?
+  updatedById           String?
+  updatedByName         String?
+  // Rejection/Appeal fields
+  rejectionNote         String?
+  appealNote            String?
+  appealRequestedById   String?
+  appealRequestedByName String?
+  appealRequestedAt     DateTime?
+  appealResponseNote    String?
+  appealRespondedById   String?
+  appealRespondedByName String?
+  appealRespondedAt     DateTime?
+  // Timestamps
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  createdBy             User      @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  family                Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  updatedBy             User?     @relation("ExpenseUpdater", fields: [updatedById], references: [id])
 
   @@index([familyId])
   @@index([familyId, date])
@@ -563,4 +575,22 @@ model MonthlyExpenseSummary {
   @@unique([familyId, year, month])
   @@index([familyId])
   @@index([familyId, year])
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  familyId  String
+  childId   String?
+  name      String
+  phone     String?
+  email     String?
+  category  String   @default("other")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([familyId, childId])
+  @@index([familyId, category])
 }
