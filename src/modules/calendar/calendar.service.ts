@@ -75,6 +75,7 @@ export class CalendarService {
         location: data.location,
         reminderMinutes: data.reminderMinutes,
         isAllDay: data.isAllDay,
+        recurring: data.recurring,
         childId,
         createdById: userId,
         createdByName: userName,
@@ -148,6 +149,7 @@ export class CalendarService {
         ...(data.location !== undefined && { location: data.location }),
         ...(data.reminderMinutes !== undefined && { reminderMinutes: data.reminderMinutes }),
         ...(data.isAllDay !== undefined && { isAllDay: data.isAllDay }),
+        ...(data.recurring !== undefined && { recurring: data.recurring }),
         ...(childId !== undefined && { childId }),
       },
     });

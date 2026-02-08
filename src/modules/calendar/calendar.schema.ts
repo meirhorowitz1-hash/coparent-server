@@ -11,6 +11,30 @@ export const custodyPatternEnum = z.enum([
   'weekly', 'biweekly', 'custom', 'week_on_week_off'
 ]);
 
+export const recurringFrequencyEnum = z.enum(['weekly', 'monthly', 'yearly']);
+
+export const recurringSchema = z.object({
+  frequency: recurringFrequencyEnum,
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+  endDate: z.string().datetime().optional(),
+}).superRefine((value, ctx) => {
+  if (value.frequency === 'weekly') {
+    if (!value.daysOfWeek || value.daysOfWeek.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'daysOfWeek is required for weekly recurring events',
+        path: ['daysOfWeek'],
+      });
+    }
+  } else if (value.daysOfWeek && value.daysOfWeek.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'daysOfWeek is only allowed for weekly recurring events',
+      path: ['daysOfWeek'],
+    });
+  }
+});
+
 export const createEventSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(1000).optional().nullable(),
@@ -22,6 +46,7 @@ export const createEventSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   reminderMinutes: z.number().int().min(0).optional().nullable(),
   isAllDay: z.boolean().default(false),
+  recurring: recurringSchema.optional().nullable(),
   childId: z.union([
     z.string().min(1),
     z.literal(''),
@@ -41,6 +66,7 @@ export const updateEventSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   reminderMinutes: z.number().int().min(0).optional().nullable(),
   isAllDay: z.boolean().optional(),
+  recurring: recurringSchema.optional().nullable(),
   childId: z.union([
     z.string().min(1),
     z.literal(''),
